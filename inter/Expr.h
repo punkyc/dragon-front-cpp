@@ -415,23 +415,26 @@ struct Do : public Stmt {
       expr->jumping(b,0);
    }
 
-   ValuePtr codegen() override {
+   ValuePtr codegen() override {       
+       ValuePtr CondV = expr->codegen();
+       //if (!CondV) return nullptr;
+
        llvm::BasicBlock *CondBB = llvm::BasicBlock::Create(TheContext, "cond");
        llvm::BasicBlock *LoopBB = llvm::BasicBlock::Create(TheContext, "loop");
        llvm::BasicBlock *LeaveBB = llvm::BasicBlock::Create(TheContext, "leave");
        llvm::Function *TheFunction = Builder->GetInsertBlock()->getParent();
-       TheFunction->getBasicBlockList().push_back(LoopBB);
-       Builder->SetInsertPoint(LoopBB);
-       if (stmt) ValuePtr LoopV = stmt->codegen();
-       Builder->CreateBr(CondBB);
-       LoopBB = Builder->GetInsertBlock();
+       llvm::BranchInst *br = Builder->CreateCondBr(CondV, LoopBB, LeaveBB);
 
        TheFunction->getBasicBlockList().push_back(CondBB);
        Builder->SetInsertPoint(CondBB);
-       ValuePtr CondV = expr->codegen();
-       //if (!CondV) return nullptr;
-       Builder->CreateCondBr(CondV, LoopBB, LeaveBB);
        CondBB = Builder->GetInsertBlock();
+       if (stmt) ValuePtr LoopV = stmt->codegen();
+       Builder->CreateBr(LeaveBB);
+
+       TheFunction->getBasicBlockList().push_back(LoopBB);
+       Builder->SetInsertPoint(LoopBB);
+       LoopBB = Builder->GetInsertBlock();
+       Builder->CreateBr(CondBB);
 
        TheFunction->getBasicBlockList().push_back(LeaveBB);
        Builder->SetInsertPoint(LeaveBB);
@@ -645,23 +648,25 @@ struct While : public Stmt {
    }
 
    ValuePtr codegen() override {
+       ValuePtr CondV = expr->codegen();
+       if (!CondV) return nullptr;
+
        llvm::BasicBlock *CondBB = llvm::BasicBlock::Create(TheContext, "cond");
        llvm::BasicBlock *LoopBB = llvm::BasicBlock::Create(TheContext, "loop");
        llvm::BasicBlock *LeaveBB = llvm::BasicBlock::Create(TheContext, "leave");
        llvm::Function *TheFunction = Builder->GetInsertBlock()->getParent();
+       llvm::BranchInst *br = Builder->CreateCondBr(CondV, LoopBB, LeaveBB); 
 
        TheFunction->getBasicBlockList().push_back(CondBB);
        Builder->SetInsertPoint(CondBB);
-       ValuePtr CondV = expr->codegen();
-       //if (!CondV) return nullptr;
-       Builder->CreateCondBr(CondV, LoopBB, LeaveBB);
        CondBB = Builder->GetInsertBlock();
-
+       Builder->CreateBr(LeaveBB);
+       
        TheFunction->getBasicBlockList().push_back(LoopBB);
        Builder->SetInsertPoint(LoopBB);
-       if (stmt) ValuePtr LoopV = stmt->codegen();
-       Builder->CreateBr(CondBB);
+       if (stmt) ValuePtr LoopV = stmt->codegen();       
        LoopBB = Builder->GetInsertBlock();
+       Builder->CreateBr(CondBB);
 
        TheFunction->getBasicBlockList().push_back(LeaveBB);
        Builder->SetInsertPoint(LeaveBB);
